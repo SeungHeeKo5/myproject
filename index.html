@@ -170,12 +170,11 @@
             loading.classList.remove('hidden');
             resultContainer.innerHTML = '';
 
-            // 1. https:// 프로토콜 적용 및 corsproxy.io 프록시 사용
+            // 프록시 없이 서울시 API 서버로 직접 요청 (https 적용)
             const targetUrl = `https://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${API_KEY}&arsId=${arsId}&resultType=json`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
             try {
-                const response = await fetch(proxyUrl);
+                const response = await fetch(targetUrl);
                 if (!response.ok) throw new Error('네트워크 응답이 올바르지 않습니다.');
 
                 const data = await response.json();
@@ -190,7 +189,7 @@
 
             } catch (error) {
                 console.error('API 호출 에러:', error);
-                resultContainer.innerHTML = `<div class="error-msg">버스 정보를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</div>`;
+                resultContainer.innerHTML = `<div class="error-msg">버스 정보를 불러오는 중 오류가 발생했습니다. (CORS 또는 인증키를 확인해주세요)</div>`;
             } finally {
                 loading.classList.add('hidden');
             }
