@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서울시 실시간 버스 도착 알림</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 600px;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        header h1 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 24px;
+        }
+
+        .search-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-section input {
+            flex: 1;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 1px solid #dcdde1;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-section input:focus {
+            border-color: #3498db;
+        }
+
+        .search-section button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+
+        .search-section button:hover {
+            background-color: #2980b9;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #e67e22;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .bus-card {
+            background: #fdfdfd;
+            border: 1px solid #e1e4e8;
+            border-left: 5px solid #2ecc71;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        .bus-card.soon {
+            border-left-color: #e74c3c; /* 곧 도착하는 버스 하이라이트 */
+        }
+
+        .bus-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 6px;
+        }
+
+        .bus-info {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.5;
+        }
+
+        .error-msg {
+            text-align: center;
+            padding: 20px;
+            color: #e74c3c;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header>
+            <h1>🚌 서울시 실시간 버스 도착 정보</h1>
+            <p>정류소 고유번호(ARS-ID) 5자리를 입력하여 실시간 도착 정보를 확인하세요.</p>
+        </header>
+
+        <div class="search-section">
+            <input type="text" id="arsIdInput" placeholder="예: 08001" maxlength="5">
+            <button id="searchBtn">도착정보 조회</button>
+        </div>
+
+        <div id="loading" class="loading hidden">🔄 버스 정보를 불러오는 중입니다...</div>
+        
+        <div id="resultContainer" class="result-container">
+            <!-- 검색 결과가 동적으로 표시됩니다 -->
+        </div>
+    </div>
+
+    <script>
+        // 공공데이터포털에서 발급받은 API Key (Decoding)를 입력하세요.
+        const API_KEY = 'YOUR_PUBLIC_DATA_PORTAL_API_KEY';
+
+        const searchBtn = document.getElementById('searchBtn');
+        const arsIdInput = document.getElementById('arsIdInput');
+        const resultContainer = document.getElementById('resultContainer');
+        const loading = document.getElementById('loading');
+
+        searchBtn.addEventListener('click', fetchBusArrivalInfo);
+        arsIdInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                fetchBusArrivalInfo();
+            }
+        });
+
+        async function fetchBusArrivalInfo() {
+            const arsId = arsIdInput.value.trim();
+            
+            if (!arsId || arsId.length !== 5) {
+                alert('올바른 5자리 정류소 고유번호(ARS-ID)를 입력해주세요.');
+                return;
+            }
+
+            loading.classList.remove('hidden');
+            resultContainer.innerHTML = '';
+
+            // 서울시 버스도착정보조회 API 호출 URL
+            const targetUrl = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${encodeURIComponent(API_KEY)}&arsId=${arsId}&resultType=json`;
+            // 브라우저 CORS 문제 해결을 위한 프록시 적용
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('네트워크 응답이 올바르지 않습니다.');
+
+                const data = await response.json();
+                
+                const msgBody = data?.msgBody;
+                if (!msgBody || !msgBody.itemList || msgBody.itemList.length === 0) {
+                    resultContainer.innerHTML = `<div class="error-msg">해당 정류소의 도착 예정 버스 정보가 없습니다.</div>`;
+                    return;
+                }
+
+                displayBusList(msgBody.itemList);
+
+            } catch (error) {
+                console.error('API 호출 에러:', error);
+                resultContainer.innerHTML = `<div class="error-msg">버스 정보를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</div>`;
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        function displayBusList(items) {
+            let html = '';
+
+            items.forEach(bus => {
+                const busRouteNm = bus.rtNm || '노선 정보 없음';
+                const arrmsg1 = bus.arrmsg1 || '정보 없음';
+                const arrmsg2 = bus.arrmsg2 || '';
+                
+                // '분전', '도착' 단어가 포함되면 곧 도착하는 버스로 강조
+                const isSoon = arrmsg1.includes('전') || arrmsg1.includes('도착');
+
+                html += `
+                    <div class="bus-card ${isSoon ? 'soon' : ''}">
+                        <div class="bus-name">🚍 ${busRouteNm}번 버스</div>
+                        <div class="bus-info">
+                            <p><strong>[첫 번째 도착]</strong> ${arrmsg1}</p>
+                            ${arrmsg2 ? `<p><strong>[두 번째 도착]</strong> ${arrmsg2}</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            resultContainer.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
