@@ -170,10 +170,9 @@
             loading.classList.remove('hidden');
             resultContainer.innerHTML = '';
 
-            // 서울시 버스도착정보조회 API 호출 URL
-            const targetUrl = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${encodeURIComponent(API_KEY)}&arsId=${arsId}&resultType=json`;
-            // 브라우저 CORS 문제 해결을 위한 프록시 적용
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+            // 1. https:// 프로토콜 적용 및 corsproxy.io 프록시 사용
+            const targetUrl = `https://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${API_KEY}&arsId=${arsId}&resultType=json`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
             try {
                 const response = await fetch(proxyUrl);
